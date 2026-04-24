@@ -31,8 +31,8 @@ export const TBody = ({ children, className }: ComponentProps) => (
   </tbody>
 );
 
-export const TR = ({ children, className }: ComponentProps) => (
-  <tr className={cn("group transition-colors hover:bg-zinc-800/50", className)}>
+export const TR = ({ children, className, ...props }: ComponentProps & React.HTMLAttributes<HTMLTableRowElement>) => (
+  <tr className={cn("group transition-colors hover:bg-zinc-800/50", className)} {...props}>
     {children}
   </tr>
 );

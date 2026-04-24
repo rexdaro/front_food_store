@@ -2,10 +2,25 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productsService } from '../services/productsService';
 import type { ProductCreate, ProductUpdate } from '../types';
 
-export const useProducts = (categoria_id?: number) => {
+export const useProducts = (filters?: { categoria_id?: number; search?: string; offset?: number; limit?: number }) => {
   return useQuery({
-    queryKey: ['products', { categoria_id }],
-    queryFn: () => productsService.getAll(categoria_id),
+    queryKey: ['products', filters],
+    queryFn: () => productsService.getAll(filters),
+  });
+};
+
+export const useProductLinks = (producto_id?: number) => {
+  return useQuery({
+    queryKey: ['productLinks', producto_id],
+    queryFn: async () => {
+      if (!producto_id) return { categories: [], ingredients: [] };
+      const [categories, ingredients] = await Promise.all([
+        productsService.getCategories(producto_id),
+        productsService.getIngredients(producto_id)
+      ]);
+      return { categories, ingredients };
+    },
+    enabled: !!producto_id,
   });
 };
 

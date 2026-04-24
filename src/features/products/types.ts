@@ -26,3 +26,8 @@ export interface ProductCreate {
 export interface ProductUpdate extends Partial<ProductCreate> {
   disponible?: boolean;
 }
+
+export interface ProductPaginated {
+  items: Product[];
+  total: number;
+}

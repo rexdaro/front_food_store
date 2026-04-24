@@ -9,7 +9,7 @@ import { Loader2, Tags, Layers } from 'lucide-react';
 const categorySchema = z.object({
   nombre: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
   descripcion: z.string().optional().nullable(),
-  parent_id: z.any().optional(),
+  parent_id: z.union([z.string(), z.number()]).optional().nullable(),
 });
 
 interface CategoryFormProps {
@@ -21,19 +21,29 @@ interface CategoryFormProps {
 export const CategoryForm = ({ onSubmit, isLoading, initialData }: CategoryFormProps) => {
   const { data: categories } = useCategories();
 
+  type FormValues = z.infer<typeof categorySchema>;
+
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<CategoryCreate>({
+  } = useForm<FormValues>({
     resolver: zodResolver(categorySchema),
-    defaultValues: initialData,
+    defaultValues: initialData as FormValues,
   });
 
-  const handleFormSubmit = (data: any) => {
+  const handleFormSubmit = (data: FormValues) => {
+    let finalParentId = null;
+    if (data.parent_id !== null && data.parent_id !== undefined && data.parent_id !== "") {
+      const parsed = Number(data.parent_id);
+      if (!isNaN(parsed)) {
+        finalParentId = parsed;
+      }
+    }
+
     const formattedData: CategoryCreate = {
       ...data,
-      parent_id: (data.parent_id === "" || isNaN(Number(data.parent_id))) ? null : Number(data.parent_id),
+      parent_id: finalParentId,
     };
     onSubmit(formattedData);
   };
@@ -65,7 +75,7 @@ export const CategoryForm = ({ onSubmit, isLoading, initialData }: CategoryFormP
           <Layers className="w-4 h-4" /> Categoría Padre (Opcional)
         </label>
         <select
-          {...register('parent_id', { valueAsNumber: true })}
+          {...register('parent_id')}
           className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all appearance-none"
         >
           <option value="">Ninguna (Categoría Raíz)</option>

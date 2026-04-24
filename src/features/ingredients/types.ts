@@ -15,4 +15,4 @@ export interface IngredientCreate {
   es_alergeno: boolean;
 }
 
-export interface IngredientUpdate extends Partial<IngredientCreate> {}
+export type IngredientUpdate = Partial<IngredientCreate>;

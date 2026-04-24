@@ -4,25 +4,63 @@ import { Button } from '@/shared/components/ui/Button';
 import { Table, THead, TBody, TR, TH, TD } from '@/shared/components/ui/Table';
 import { Modal } from '@/shared/components/ui/Modal';
 import { ProductForm } from '../components/ProductForm';
-import { Plus, Trash2, Edit2, AlertCircle, Loader2, Package } from 'lucide-react';
+import { ProductDetails } from '../components/ProductDetails';
+import { ConfirmModal } from '@/shared/components/ui/ConfirmModal';
+import { Plus, Trash2, Edit2, AlertCircle, Loader2, Package, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Product, ProductCreate } from '../types';
+import { useEffect } from 'react';
+
+type ModalMode = 'create' | 'edit' | 'view';
 
 export const ProductsPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<ModalMode>('create');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [productToDelete, setProductToDelete] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 10;
   
-  const { data: products, isLoading, isError } = useProducts();
+  const { data: paginatedData, isLoading, isError } = useProducts({
+    offset: page * PAGE_SIZE,
+    limit: PAGE_SIZE,
+    search: searchTerm || undefined
+  });
+
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm]);
+
+  const products = paginatedData?.items || [];
+  const total = paginatedData?.total || 0;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
   const deleteMutation = useDeleteProduct();
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSearchTerm(searchQuery);
+  };
+
   const handleOpenCreate = () => {
     setSelectedProduct(null);
+    setModalMode('create');
     setIsModalOpen(true);
   };
 
-  const handleOpenEdit = (product: Product) => {
+  const handleOpenEdit = (product: Product, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setSelectedProduct(product);
+    setModalMode('edit');
+    setIsModalOpen(true);
+  };
+
+  const handleOpenDetails = (product: Product) => {
+    setSelectedProduct(product);
+    setModalMode('view');
     setIsModalOpen(true);
   };
 
@@ -39,9 +77,16 @@ export const ProductsPage = () => {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (confirm('¿Estás seguro de eliminar este producto?')) {
-      await deleteMutation.mutateAsync(id);
+  const handleDelete = (id: number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setProductToDelete(id);
+  };
+
+  const confirmDelete = async () => {
+    if (productToDelete !== null) {
+      await deleteMutation.mutateAsync(productToDelete);
+      setProductToDelete(null);
+      setIsModalOpen(false);
     }
   };
 
@@ -66,17 +111,34 @@ export const ProductsPage = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-700">
-      <header className="flex justify-between items-center">
+      <header className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-white to-zinc-500 bg-clip-text text-transparent">
             Productos
           </h1>
           <p className="text-zinc-400 mt-1">Gestioná el catálogo de alimentos y sus precios.</p>
         </div>
-        <Button className="gap-2" onClick={handleOpenCreate}>
-          <Plus className="w-5 h-5" />
-          Nuevo Producto
-        </Button>
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <form onSubmit={handleSearch} className="relative flex-1 md:w-80 flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <input 
+                type="text"
+                placeholder="Buscar producto..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all text-white placeholder:text-zinc-600"
+              />
+            </div>
+            <Button type="submit" variant="secondary" size="sm" className="px-4">
+              Buscar
+            </Button>
+          </form>
+          <Button className="gap-2 whitespace-nowrap shrink-0" onClick={handleOpenCreate}>
+            <Plus className="w-5 h-5" />
+            Nuevo
+          </Button>
+        </div>
       </header>
 
       <Table>
@@ -90,19 +152,27 @@ export const ProductsPage = () => {
           </TR>
         </THead>
         <TBody>
-          {products?.length === 0 ? (
+          {products.length === 0 ? (
             <TR>
               <TD colSpan={5} className="text-center py-12 text-zinc-500 italic">
-                No hay productos en el catálogo.
+                {searchTerm ? 'No se encontraron productos con esa búsqueda.' : 'No hay productos en el catálogo.'}
               </TD>
             </TR>
           ) : (
-            products?.map((prod) => (
-              <TR key={prod.id}>
+            products.map((prod) => (
+              <TR key={prod.id} className="cursor-pointer hover:bg-zinc-800/50 transition-colors" onClick={() => handleOpenDetails(prod)}>
                 <TD>
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-500">
-                      <Package className="w-5 h-5" />
+                    <div className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-500 overflow-hidden shrink-0 border border-zinc-700">
+                      {prod.imagenes_url && prod.imagenes_url.length > 0 ? (
+                        <img
+                          src={prod.imagenes_url[0]}
+                          alt={prod.nombre}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Package className="w-5 h-5" />
+                      )}
                     </div>
                     <div>
                       <div className="font-medium text-white">{prod.nombre}</div>
@@ -131,19 +201,19 @@ export const ProductsPage = () => {
                 </TD>
                 <TD className="text-right">
                   <div className="flex justify-end gap-2">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="h-9 w-9 p-0"
-                      onClick={() => handleOpenEdit(prod)}
+                      onClick={(e) => handleOpenEdit(prod, e)}
                     >
                       <Edit2 className="w-4 h-4" />
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="h-9 w-9 p-0 text-zinc-500 hover:text-red-500 hover:bg-red-500/10"
-                      onClick={() => handleDelete(prod.id)}
+                      onClick={(e) => handleDelete(prod.id, e)}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -155,17 +225,80 @@ export const ProductsPage = () => {
         </TBody>
       </Table>
 
-      <Modal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        title={selectedProduct ? 'Editar Producto' : 'Agregar Nuevo Producto'}
+      {/* Pagination Controls */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-zinc-900/30 p-4 rounded-2xl border border-zinc-800/50">
+        <div className="text-sm text-zinc-500">
+          Mostrando página <span className="text-white font-medium">{page + 1}</span> de <span className="text-white font-medium">{totalPages || 1}</span>
+          <span className="ml-2 text-zinc-600">({total} productos en total)</span>
+        </div>
+        
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setPage(p => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="w-8 h-8 p-0"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+
+          <div className="flex items-center gap-1 px-2">
+            {Array.from({ length: totalPages }).map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setPage(i)}
+                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                  page === i 
+                    ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' 
+                    : 'bg-zinc-800/50 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
+                }`}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setPage(p => p + 1)}
+            disabled={page >= totalPages - 1}
+            className="w-8 h-8 p-0"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={modalMode === 'create' ? 'Agregar Nuevo Producto' : modalMode === 'edit' ? 'Editar Producto' : 'Detalles del Producto'}
       >
-        <ProductForm 
-          onSubmit={handleSubmit} 
-          isLoading={createMutation.isPending || updateMutation.isPending} 
-          initialData={selectedProduct || undefined}
-        />
+        {modalMode === 'view' && selectedProduct ? (
+          <ProductDetails
+            product={selectedProduct}
+            onEdit={handleOpenEdit}
+            onDelete={handleDelete}
+          />
+        ) : (
+          <ProductForm
+            onSubmit={handleSubmit}
+            isLoading={createMutation.isPending || updateMutation.isPending}
+            initialData={selectedProduct || undefined}
+          />
+        )}
       </Modal>
+
+      <ConfirmModal
+        isOpen={productToDelete !== null}
+        onClose={() => setProductToDelete(null)}
+        onConfirm={confirmDelete}
+        title="Eliminar Producto"
+        description="¿Estás seguro de que querés eliminar este producto del catálogo? Esta acción lo dará de baja."
+        confirmText="Eliminar"
+      />
     </div>
   );
 };

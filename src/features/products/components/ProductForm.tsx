@@ -1,11 +1,13 @@
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import type { ProductCreate } from '../types';
+import type { ProductCreate, Product } from '../types';
 import { useCategories } from '@/features/categories/hooks/useCategories';
 import { useIngredients } from '@/features/ingredients/hooks/useIngredients';
+import { useProductLinks } from '../hooks/useProducts';
 import { Button } from '@/shared/components/ui/Button';
 import { Loader2, Package, DollarSign, List, FlaskConical } from 'lucide-react';
+import { useEffect } from 'react';
 
 const productSchema = z.object({
   nombre: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
@@ -14,35 +16,53 @@ const productSchema = z.object({
   stock_cantidad: z.number().int().min(0, 'El stock debe ser positivo'),
   categoria_ids: z.array(z.number()).default([]),
   ingrediente_ids: z.array(z.number()).default([]),
+  imagenes_url: z.array(z.string()).nullable().optional().default([]),
 });
 
 interface ProductFormProps {
   onSubmit: (data: ProductCreate) => void;
   isLoading?: boolean;
-  initialData?: Partial<ProductCreate>;
+  initialData?: Product | Partial<ProductCreate>;
 }
 
 export const ProductForm = ({ onSubmit, isLoading, initialData }: ProductFormProps) => {
   const { data: categories } = useCategories();
   const { data: ingredients } = useIngredients();
+  
+  // Try to cast initialData to a Product with id to fetch links
+  const productId = (initialData as Product)?.id;
+  const { data: links, isLoading: isLoadingLinks } = useProductLinks(productId);
 
   const {
     register,
     handleSubmit,
     setValue,
-    watch,
+    control,
+    reset,
     formState: { errors },
   } = useForm<ProductCreate>({
     resolver: zodResolver(productSchema),
     defaultValues: {
       categoria_ids: [],
       ingrediente_ids: [],
+      imagenes_url: [],
       ...initialData,
     },
   });
 
-  const selectedCategories = watch('categoria_ids') || [];
-  const selectedIngredients = watch('ingrediente_ids') || [];
+  useEffect(() => {
+    if (initialData && links && !isLoadingLinks) {
+      reset({
+        ...initialData,
+        categoria_ids: links.categories.map(c => c.categoria_id),
+        ingrediente_ids: links.ingredients.map(i => i.ingrediente_id),
+      } as ProductCreate);
+    }
+  }, [initialData, links, isLoadingLinks, reset]);
+
+  const selectedCategories = useWatch({ control, name: 'categoria_ids' }) || [];
+  const selectedIngredients = useWatch({ control, name: 'ingrediente_ids' }) || [];
+  const imagenesUrls = useWatch({ control, name: 'imagenes_url' }) || [];
 
   const toggleCategory = (id: number) => {
     const newValues = selectedCategories.includes(id)
@@ -56,6 +76,16 @@ export const ProductForm = ({ onSubmit, isLoading, initialData }: ProductFormPro
       ? selectedIngredients.filter(ingId => ingId !== id)
       : [...selectedIngredients, id];
     setValue('ingrediente_ids', newValues);
+  };
+
+  const handleImageUrlsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (!value.trim()) {
+      setValue('imagenes_url', []);
+      return;
+    }
+    const urls = value.split(',').map(s => s.trim()).filter(Boolean);
+    setValue('imagenes_url', urls);
   };
 
   return (
@@ -76,10 +106,22 @@ export const ProductForm = ({ onSubmit, isLoading, initialData }: ProductFormPro
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-zinc-400 mb-2 flex items-center gap-2">
+              <Package className="w-4 h-4" /> URLs de Imágenes (separadas por coma)
+            </label>
+            <input
+              value={imagenesUrls?.join(', ') || ''}
+              onChange={handleImageUrlsChange}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
+              placeholder="https://imagen1.jpg, https://imagen2.jpg"
+            />
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-zinc-400 mb-2">Descripción</label>
             <textarea
               {...register('descripcion')}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all h-32"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all h-24"
               placeholder="Describí los detalles del producto..."
             />
           </div>

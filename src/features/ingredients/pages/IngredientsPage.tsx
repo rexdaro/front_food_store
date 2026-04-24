@@ -3,13 +3,16 @@ import { useIngredients, useDeleteIngredient, useCreateIngredient, useUpdateIngr
 import { Button } from '@/shared/components/ui/Button';
 import { Table, THead, TBody, TR, TH, TD } from '@/shared/components/ui/Table';
 import { Modal } from '@/shared/components/ui/Modal';
+import { ConfirmModal } from '@/shared/components/ui/ConfirmModal';
 import { IngredientForm } from '../components/IngredientForm';
-import { Plus, Trash2, Edit2, AlertTriangle, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Edit2, AlertTriangle, Loader2, AlertCircle, Search } from 'lucide-react';
 import type { Ingredient, IngredientCreate } from '../types';
 
 export const IngredientsPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | null>(null);
+  const [ingredientToDelete, setIngredientToDelete] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   
   const { data: ingredients, isLoading, isError } = useIngredients();
   const createMutation = useCreateIngredient();
@@ -39,9 +42,14 @@ export const IngredientsPage = () => {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (confirm('¿Estás seguro de eliminar este ingrediente?')) {
-      await deleteMutation.mutateAsync(id);
+  const handleDelete = (id: number) => {
+    setIngredientToDelete(id);
+  };
+
+  const confirmDelete = async () => {
+    if (ingredientToDelete !== null) {
+      await deleteMutation.mutateAsync(ingredientToDelete);
+      setIngredientToDelete(null);
     }
   };
 
@@ -64,19 +72,36 @@ export const IngredientsPage = () => {
     );
   }
 
+  const filteredIngredients = ingredients?.filter(ing => 
+    ing.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    ing.descripcion?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="space-y-6 animate-in fade-in duration-700">
-      <header className="flex justify-between items-center">
+      <header className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-white to-zinc-500 bg-clip-text text-transparent">
             Ingredientes
           </h1>
           <p className="text-zinc-400 mt-1">Administrá los ingredientes y alertas de alérgenos.</p>
         </div>
-        <Button className="gap-2" onClick={handleOpenCreate}>
-          <Plus className="w-5 h-5" />
-          Nuevo Ingrediente
-        </Button>
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="relative flex-1 md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+            <input 
+              type="text"
+              placeholder="Buscar ingrediente..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all text-white placeholder:text-zinc-600"
+            />
+          </div>
+          <Button className="gap-2 whitespace-nowrap shrink-0" onClick={handleOpenCreate}>
+            <Plus className="w-5 h-5" />
+            Nuevo
+          </Button>
+        </div>
       </header>
 
       <Table>
@@ -89,14 +114,14 @@ export const IngredientsPage = () => {
           </TR>
         </THead>
         <TBody>
-          {ingredients?.length === 0 ? (
+          {filteredIngredients?.length === 0 ? (
             <TR>
               <TD colSpan={4} className="text-center py-12 text-zinc-500 italic">
-                No hay ingredientes registrados.
+                {searchTerm ? 'No se encontraron ingredientes con esa búsqueda.' : 'No hay ingredientes registrados.'}
               </TD>
             </TR>
           ) : (
-            ingredients?.map((ing) => (
+            filteredIngredients?.map((ing) => (
               <TR key={ing.id}>
                 <TD className="font-medium text-white">{ing.nombre}</TD>
                 <TD className="max-w-xs truncate">{ing.descripcion || '-'}</TD>
@@ -149,6 +174,15 @@ export const IngredientsPage = () => {
           initialData={selectedIngredient || undefined}
         />
       </Modal>
+
+      <ConfirmModal
+        isOpen={ingredientToDelete !== null}
+        onClose={() => setIngredientToDelete(null)}
+        onConfirm={confirmDelete}
+        title="Eliminar Ingrediente"
+        description="¿Estás seguro de que querés eliminar este ingrediente? Se quitará de todos los productos que lo utilicen. Esta acción no se puede deshacer."
+        confirmText="Eliminar"
+      />
     </div>
   );
 };

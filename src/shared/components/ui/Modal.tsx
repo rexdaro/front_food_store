@@ -11,13 +11,22 @@ interface ModalProps {
 
 export const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
   useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+
     if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
     }
-    return () => { document.body.style.overflow = 'unset'; };
-  }, [isOpen]);
+    
+    return () => { 
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'unset'; 
+    };
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 

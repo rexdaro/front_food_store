@@ -1,10 +1,9 @@
 import { apiClient } from '@/api/api-client';
-import type { Product, ProductCreate, ProductUpdate } from '../types';
+import type { Product, ProductCreate, ProductUpdate, ProductPaginated } from '../types';
 
 export const productsService = {
-  getAll: async (categoria_id?: number): Promise<Product[]> => {
-    const params = categoria_id ? { categoria_id } : {};
-    const { data } = await apiClient.get<Product[]>('/productos', { params });
+  getAll: async (filters?: { categoria_id?: number; search?: string; offset?: number; limit?: number }): Promise<ProductPaginated> => {
+    const { data } = await apiClient.get<ProductPaginated>('/productos', { params: filters });
     return data;
   },
 
@@ -33,5 +32,15 @@ export const productsService = {
 
   linkIngredient: async (producto_id: number, ingrediente_id: number): Promise<void> => {
     await apiClient.post('/vinculos-ingredientes/', { producto_id, ingrediente_id });
+  },
+
+  getCategories: async (producto_id: number): Promise<{producto_id: number, categoria_id: number}[]> => {
+    const { data } = await apiClient.get<{producto_id: number, categoria_id: number}[]>(`/vinculos-categorias/producto/${producto_id}`);
+    return data;
+  },
+
+  getIngredients: async (producto_id: number): Promise<{producto_id: number, ingrediente_id: number}[]> => {
+    const { data } = await apiClient.get<{producto_id: number, ingrediente_id: number}[]>(`/vinculos-ingredientes/producto/${producto_id}`);
+    return data;
   },
 };
