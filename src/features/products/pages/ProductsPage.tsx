@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useProducts, useCreateProduct, useDeleteProduct, useUpdateProduct } from '../hooks/useProducts';
 import { Button } from '@/shared/components/ui/Button';
 import { Table, THead, TBody, TR, TH, TD } from '@/shared/components/ui/Table';
@@ -8,15 +8,14 @@ import { ProductDetails } from '../components/ProductDetails';
 import { ConfirmModal } from '@/shared/components/ui/ConfirmModal';
 import { Plus, Trash2, Edit2, AlertCircle, Loader2, Package, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Product, ProductCreate } from '../types';
-import { useEffect } from 'react';
 
-type ModalMode = 'create' | 'edit' | 'view';
+
+import { useModal } from '@/shared/hooks/useModal';
 
 export const ProductsPage = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<ModalMode>('create');
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [productToDelete, setProductToDelete] = useState<number | null>(null);
+  const modal = useModal<Product>();
+  const deleteModal = useModal<number>(); // Guardamos el ID a eliminar
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(0);
@@ -45,48 +44,23 @@ export const ProductsPage = () => {
     setSearchTerm(searchQuery);
   };
 
-  const handleOpenCreate = () => {
-    setSelectedProduct(null);
-    setModalMode('create');
-    setIsModalOpen(true);
-  };
-
-  const handleOpenEdit = (product: Product, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setSelectedProduct(product);
-    setModalMode('edit');
-    setIsModalOpen(true);
-  };
-
-  const handleOpenDetails = (product: Product) => {
-    setSelectedProduct(product);
-    setModalMode('view');
-    setIsModalOpen(true);
-  };
-
   const handleSubmit = async (data: ProductCreate) => {
     try {
-      if (selectedProduct) {
-        await updateMutation.mutateAsync({ id: selectedProduct.id, data });
+      if (modal.data) {
+        await updateMutation.mutateAsync({ id: modal.data.id, data });
       } else {
         await createMutation.mutateAsync(data);
       }
-      setIsModalOpen(false);
+      modal.close();
     } catch (error) {
       console.error('Error saving product:', error);
     }
   };
 
-  const handleDelete = (id: number, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setProductToDelete(id);
-  };
-
   const confirmDelete = async () => {
-    if (productToDelete !== null) {
-      await deleteMutation.mutateAsync(productToDelete);
-      setProductToDelete(null);
-      setIsModalOpen(false);
+    if (deleteModal.data !== null) {
+      await deleteMutation.mutateAsync(deleteModal.data);
+      deleteModal.close();
     }
   };
 
@@ -134,7 +108,7 @@ export const ProductsPage = () => {
               Buscar
             </Button>
           </form>
-          <Button className="gap-2 whitespace-nowrap shrink-0" onClick={handleOpenCreate}>
+          <Button className="gap-2 whitespace-nowrap shrink-0" onClick={() => modal.open('create')}>
             <Plus className="w-5 h-5" />
             Nuevo
           </Button>
@@ -160,7 +134,11 @@ export const ProductsPage = () => {
             </TR>
           ) : (
             products.map((prod) => (
-              <TR key={prod.id} className="cursor-pointer hover:bg-zinc-800/50 transition-colors" onClick={() => handleOpenDetails(prod)}>
+              <TR 
+                key={prod.id} 
+                className="cursor-pointer hover:bg-zinc-800/50 transition-colors" 
+                onClick={() => modal.open('view', prod)}
+              >
                 <TD>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-500 overflow-hidden shrink-0 border border-zinc-700">
@@ -205,7 +183,10 @@ export const ProductsPage = () => {
                       variant="ghost"
                       size="sm"
                       className="h-9 w-9 p-0"
-                      onClick={(e) => handleOpenEdit(prod, e)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        modal.open('edit', prod);
+                      }}
                     >
                       <Edit2 className="w-4 h-4" />
                     </Button>
@@ -213,7 +194,10 @@ export const ProductsPage = () => {
                       variant="ghost"
                       size="sm"
                       className="h-9 w-9 p-0 text-zinc-500 hover:text-red-500 hover:bg-red-500/10"
-                      onClick={(e) => handleDelete(prod.id, e)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteModal.open('create', prod.id); // Usamos 'create' por defecto para el delete
+                      }}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -250,8 +234,8 @@ export const ProductsPage = () => {
                 onClick={() => setPage(i)}
                 className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
                   page === i 
-                    ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' 
-                    : 'bg-zinc-800/50 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
+                  ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' 
+                  : 'bg-zinc-800/50 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
                 }`}
               >
                 {i + 1}
@@ -272,28 +256,28 @@ export const ProductsPage = () => {
       </div>
 
       <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={modalMode === 'create' ? 'Agregar Nuevo Producto' : modalMode === 'edit' ? 'Editar Producto' : 'Detalles del Producto'}
+        isOpen={modal.isOpen}
+        onClose={modal.close}
+        title={modal.mode === 'create' ? 'Agregar Nuevo Producto' : modal.mode === 'edit' ? 'Editar Producto' : 'Detalles del Producto'}
       >
-        {modalMode === 'view' && selectedProduct ? (
+        {modal.mode === 'view' && modal.data ? (
           <ProductDetails
-            product={selectedProduct}
-            onEdit={handleOpenEdit}
-            onDelete={handleDelete}
+            product={modal.data}
+            onEdit={(prod) => modal.open('edit', prod)}
+            onDelete={(id) => deleteModal.open('create', id)}
           />
         ) : (
           <ProductForm
             onSubmit={handleSubmit}
             isLoading={createMutation.isPending || updateMutation.isPending}
-            initialData={selectedProduct || undefined}
+            initialData={modal.data || undefined}
           />
         )}
       </Modal>
 
       <ConfirmModal
-        isOpen={productToDelete !== null}
-        onClose={() => setProductToDelete(null)}
+        isOpen={deleteModal.isOpen}
+        onClose={deleteModal.close}
         onConfirm={confirmDelete}
         title="Eliminar Producto"
         description="¿Estás seguro de que querés eliminar este producto del catálogo? Esta acción lo dará de baja."

@@ -5,7 +5,10 @@ import type { Category, CategoryUpdate } from '../types';
 export const useCategories = () => {
   return useQuery({
     queryKey: ['categories'],
-    queryFn: categoriesService.getAll,
+    queryFn: async () => {
+      const data = await categoriesService.getAll();
+      return [...data].sort((a, b) => a.nombre.localeCompare(b.nombre));
+    },
   });
 };
 
@@ -29,12 +32,14 @@ function buildTree(items: Category[]): Category[] {
     const mappedItem = map.get(item.id)!;
     if (item.parent_id !== null && map.has(item.parent_id)) {
       map.get(item.parent_id)!.children.push(mappedItem);
+      // Mantener los hijos ordenados al insertarlos
+      map.get(item.parent_id)!.children.sort((a, b) => a.nombre.localeCompare(b.nombre));
     } else {
       roots.push(mappedItem);
     }
   });
 
-  return roots;
+  return roots.sort((a, b) => a.nombre.localeCompare(b.nombre));
 }
 
 export const useCreateCategory = () => {

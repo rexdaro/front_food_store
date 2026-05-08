@@ -5,7 +5,10 @@ import type { IngredientUpdate } from '../types';
 export const useIngredients = () => {
   return useQuery({
     queryKey: ['ingredients'],
-    queryFn: ingredientsService.getAll,
+    queryFn: async () => {
+      const data = await ingredientsService.getAll();
+      return [...data].sort((a, b) => a.nombre.localeCompare(b.nombre));
+    },
   });
 };
 

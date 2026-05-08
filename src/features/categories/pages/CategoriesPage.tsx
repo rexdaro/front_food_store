@@ -7,11 +7,12 @@ import { ConfirmModal } from '@/shared/components/ui/ConfirmModal';
 import { CategoryForm } from '../components/CategoryForm';
 import { Plus, Trash2, Edit2, AlertCircle, Loader2, ChevronRight, Tags, Search } from 'lucide-react';
 import type { CategoryCreate, Category } from '../types';
+import { useModal } from '@/shared/hooks/useModal';
 
 export const CategoriesPage = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [categoryToDelete, setCategoryToDelete] = useState<number | null>(null);
+  const modal = useModal<Category>();
+  const deleteModal = useModal<number>();
+  
   const [expandedIds, setExpandedIds] = useState<Record<number, boolean>>({});
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -20,37 +21,23 @@ export const CategoriesPage = () => {
   const updateMutation = useUpdateCategory();
   const deleteMutation = useDeleteCategory();
 
-  const handleOpenCreate = () => {
-    setSelectedCategory(null);
-    setIsModalOpen(true);
-  };
-
-  const handleOpenEdit = (category: Category) => {
-    setSelectedCategory(category);
-    setIsModalOpen(true);
-  };
-
   const handleCreate = async (data: CategoryCreate) => {
     try {
-      if (selectedCategory) {
-        await updateMutation.mutateAsync({ id: selectedCategory.id, data });
+      if (modal.data) {
+        await updateMutation.mutateAsync({ id: modal.data.id, data });
       } else {
         await createMutation.mutateAsync(data);
       }
-      setIsModalOpen(false);
+      modal.close();
     } catch (error) {
       console.error('Error saving category:', error);
     }
   };
 
-  const handleDelete = (id: number) => {
-    setCategoryToDelete(id);
-  };
-
   const confirmDelete = async () => {
-    if (categoryToDelete !== null) {
-      await deleteMutation.mutateAsync(categoryToDelete);
-      setCategoryToDelete(null);
+    if (deleteModal.data !== null) {
+      await deleteMutation.mutateAsync(deleteModal.data);
+      deleteModal.close();
     }
   };
 
@@ -134,7 +121,7 @@ export const CategoriesPage = () => {
                   variant="ghost" 
                   size="sm" 
                   className="h-8 w-8 p-0"
-                  onClick={() => handleOpenEdit(cat)}
+                  onClick={() => modal.open('edit', cat)}
                 >
                   <Edit2 className="w-3.5 h-3.5" />
                 </Button>
@@ -142,7 +129,7 @@ export const CategoriesPage = () => {
                   variant="ghost" 
                   size="sm" 
                   className="h-8 w-8 p-0 text-zinc-500 hover:text-red-500 hover:bg-red-500/10"
-                  onClick={() => handleDelete(cat.id)}
+                  onClick={() => deleteModal.open('create', cat.id)}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
@@ -175,7 +162,7 @@ export const CategoriesPage = () => {
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all text-white placeholder:text-zinc-600"
             />
           </div>
-          <Button className="gap-2 whitespace-nowrap shrink-0" onClick={handleOpenCreate}>
+          <Button className="gap-2 whitespace-nowrap shrink-0" onClick={() => modal.open('create')}>
             <Plus className="w-5 h-5" />
             Nueva
           </Button>
@@ -204,20 +191,20 @@ export const CategoriesPage = () => {
       </Table>
 
       <Modal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        title={selectedCategory ? 'Editar Categoría' : 'Crear Nueva Categoría'}
+        isOpen={modal.isOpen} 
+        onClose={modal.close} 
+        title={modal.data ? 'Editar Categoría' : 'Crear Nueva Categoría'}
       >
         <CategoryForm 
           onSubmit={handleCreate} 
           isLoading={createMutation.isPending || updateMutation.isPending} 
-          initialData={selectedCategory || undefined}
+          initialData={modal.data || undefined}
         />
       </Modal>
 
       <ConfirmModal
-        isOpen={categoryToDelete !== null}
-        onClose={() => setCategoryToDelete(null)}
+        isOpen={deleteModal.isOpen}
+        onClose={deleteModal.close}
         onConfirm={confirmDelete}
         title="Eliminar Categoría"
         description="¿Estás seguro de que querés eliminar esta categoría? Si tiene subcategorías, también serán eliminadas. Esta acción no se puede deshacer."

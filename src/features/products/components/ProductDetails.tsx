@@ -1,6 +1,4 @@
 import { useProductLinks } from '../hooks/useProducts';
-import { useCategories } from '@/features/categories/hooks/useCategories';
-import { useIngredients } from '@/features/ingredients/hooks/useIngredients';
 import type { Product } from '../types';
 import { Button } from '@/shared/components/ui/Button';
 import { Edit2, Trash2, Loader2, Package, Tag, FlaskConical, DollarSign, Layers } from 'lucide-react';
@@ -13,11 +11,9 @@ interface ProductDetailsProps {
 
 export const ProductDetails = ({ product, onEdit, onDelete }: ProductDetailsProps) => {
   const { data: links, isLoading: isLoadingLinks } = useProductLinks(product.id);
-  const { data: categories } = useCategories();
-  const { data: ingredients } = useIngredients();
 
-  const productCategories = categories?.filter(c => links?.categories.some(lc => lc.categoria_id === c.id)) || [];
-  const productIngredients = ingredients?.filter(i => links?.ingredients.some(li => li.ingrediente_id === i.id)) || [];
+  const productCategories = links?.categories ?? [];
+  const productIngredients = links?.ingredients ?? [];
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">

@@ -7,7 +7,7 @@ import { useIngredients } from '@/features/ingredients/hooks/useIngredients';
 import { useProductLinks } from '../hooks/useProducts';
 import { Button } from '@/shared/components/ui/Button';
 import { Loader2, Package, DollarSign, List, FlaskConical } from 'lucide-react';
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 
 const productSchema = z.object({
   nombre: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
@@ -28,7 +28,7 @@ interface ProductFormProps {
 export const ProductForm = ({ onSubmit, isLoading, initialData }: ProductFormProps) => {
   const { data: categories } = useCategories();
   const { data: ingredients } = useIngredients();
-  
+
   // Try to cast initialData to a Product with id to fetch links
   const productId = (initialData as Product)?.id;
   const { data: links, isLoading: isLoadingLinks } = useProductLinks(productId);
@@ -54,8 +54,8 @@ export const ProductForm = ({ onSubmit, isLoading, initialData }: ProductFormPro
     if (initialData && links && !isLoadingLinks) {
       reset({
         ...initialData,
-        categoria_ids: links.categories.map(c => c.categoria_id),
-        ingrediente_ids: links.ingredients.map(i => i.ingrediente_id),
+        categoria_ids: links.categories.map(c => c.id),
+        ingrediente_ids: links.ingredients.map(i => i.id),
       } as ProductCreate);
     }
   }, [initialData, links, isLoadingLinks, reset]);
@@ -64,18 +64,26 @@ export const ProductForm = ({ onSubmit, isLoading, initialData }: ProductFormPro
   const selectedIngredients = useWatch({ control, name: 'ingrediente_ids' }) || [];
   const imagenesUrls = useWatch({ control, name: 'imagenes_url' }) || [];
 
+  /**
+   * Gestión de la selección de categorías e ingredientes.
+   * Usamos getValues() para obtener el estado más reciente del store de react-hook-form
+   * y evitar problemas de concurrencia en renders rápidos.
+   */
   const toggleCategory = (id: number) => {
-    const newValues = selectedCategories.includes(id)
-      ? selectedCategories.filter(catId => catId !== id)
-      : [...selectedCategories, id];
-    setValue('categoria_ids', newValues);
+    const current = getValues('categoria_ids') || [];
+    const newValues = current.includes(id)
+      ? current.filter((catId: number) => catId !== id)
+      : [...current, id];
+    // Seteamos shouldDirty en true para que el formulario reconozca que hubo cambios
+    setValue('categoria_ids', newValues, { shouldDirty: true });
   };
 
   const toggleIngredient = (id: number) => {
-    const newValues = selectedIngredients.includes(id)
-      ? selectedIngredients.filter(ingId => ingId !== id)
-      : [...selectedIngredients, id];
-    setValue('ingrediente_ids', newValues);
+    const current = getValues('ingrediente_ids') || [];
+    const newValues = current.includes(id)
+      ? current.filter((ingId: number) => ingId !== id)
+      : [...current, id];
+    setValue('ingrediente_ids', newValues, { shouldDirty: true });
   };
 
   const handleImageUrlsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -161,11 +169,10 @@ export const ProductForm = ({ onSubmit, isLoading, initialData }: ProductFormPro
                   type="button"
                   key={cat.id}
                   onClick={() => toggleCategory(cat.id)}
-                  className={`text-left px-3 py-2 rounded-lg text-sm transition-all ${
-                    selectedCategories.includes(cat.id)
+                  className={`text-left px-3 py-2 rounded-lg text-sm transition-all ${selectedCategories.includes(cat.id)
                       ? 'bg-orange-500 text-white font-semibold'
                       : 'hover:bg-zinc-800 text-zinc-400'
-                  }`}
+                    }`}
                 >
                   {cat.nombre}
                 </button>
@@ -183,17 +190,15 @@ export const ProductForm = ({ onSubmit, isLoading, initialData }: ProductFormPro
                   type="button"
                   key={ing.id}
                   onClick={() => toggleIngredient(ing.id)}
-                  className={`text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between transition-all ${
-                    selectedIngredients.includes(ing.id)
+                  className={`text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between transition-all ${selectedIngredients.includes(ing.id)
                       ? 'bg-orange-500 text-white font-semibold'
                       : 'hover:bg-zinc-800 text-zinc-400'
-                  }`}
+                    }`}
                 >
                   {ing.nombre}
                   {ing.es_alergeno && (
-                    <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
-                      selectedIngredients.includes(ing.id) ? 'bg-white/20 text-white' : 'bg-red-500/10 text-red-500'
-                    }`}>
+                    <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${selectedIngredients.includes(ing.id) ? 'bg-white/20 text-white' : 'bg-red-500/10 text-red-500'
+                      }`}>
                       Alergeno
                     </span>
                   )}
@@ -205,9 +210,9 @@ export const ProductForm = ({ onSubmit, isLoading, initialData }: ProductFormPro
       </div>
 
       <div className="pt-6 border-t border-zinc-800 flex justify-end">
-        <Button 
-          type="submit" 
-          disabled={isLoading} 
+        <Button
+          type="submit"
+          disabled={isLoading}
           className="w-full md:w-auto min-w-[200px]"
         >
           {isLoading ? (

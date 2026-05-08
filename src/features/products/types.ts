@@ -31,3 +31,30 @@ export interface ProductPaginated {
   items: Product[];
   total: number;
 }
+
+// --- Tipos de vinculación M:N ---
+
+export interface VincularCategoriaPayload {
+  producto_id: number;
+  categoria_id: number;
+  es_principal?: boolean;
+}
+
+export interface VincularIngredientePayload {
+  producto_id: number;
+  ingrediente_id: number;
+  es_removible?: boolean;
+}
+
+export interface ProductoCategoriaLink {
+  producto_id: number;
+  categoria_id: number;
+  es_principal: boolean;
+  created_at?: string;
+}
+
+export interface ProductoIngredienteLink {
+  producto_id: number;
+  ingrediente_id: number;
+  es_removible: boolean;
+}

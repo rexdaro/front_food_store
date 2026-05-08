@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useIngredients, useDeleteIngredient, useCreateIngredient, useUpdateIngredient } from '../hooks/useIngredients';
 import { Button } from '@/shared/components/ui/Button';
 import { Table, THead, TBody, TR, TH, TD } from '@/shared/components/ui/Table';
@@ -8,10 +8,11 @@ import { IngredientForm } from '../components/IngredientForm';
 import { Plus, Trash2, Edit2, AlertTriangle, Loader2, AlertCircle, Search } from 'lucide-react';
 import type { Ingredient, IngredientCreate } from '../types';
 
+import { useModal } from '@/shared/hooks/useModal';
+
 export const IngredientsPage = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | null>(null);
-  const [ingredientToDelete, setIngredientToDelete] = useState<number | null>(null);
+  const modal = useModal<Ingredient>();
+  const deleteModal = useModal<number>();
   const [searchTerm, setSearchTerm] = useState('');
   
   const { data: ingredients, isLoading, isError } = useIngredients();
@@ -19,37 +20,23 @@ export const IngredientsPage = () => {
   const updateMutation = useUpdateIngredient();
   const deleteMutation = useDeleteIngredient();
 
-  const handleOpenCreate = () => {
-    setSelectedIngredient(null);
-    setIsModalOpen(true);
-  };
-
-  const handleOpenEdit = (ingredient: Ingredient) => {
-    setSelectedIngredient(ingredient);
-    setIsModalOpen(true);
-  };
-
   const handleSubmit = async (data: IngredientCreate) => {
     try {
-      if (selectedIngredient) {
-        await updateMutation.mutateAsync({ id: selectedIngredient.id, data });
+      if (modal.data) {
+        await updateMutation.mutateAsync({ id: modal.data.id, data });
       } else {
         await createMutation.mutateAsync(data);
       }
-      setIsModalOpen(false);
+      modal.close();
     } catch (error) {
       console.error('Error saving ingredient:', error);
     }
   };
 
-  const handleDelete = (id: number) => {
-    setIngredientToDelete(id);
-  };
-
   const confirmDelete = async () => {
-    if (ingredientToDelete !== null) {
-      await deleteMutation.mutateAsync(ingredientToDelete);
-      setIngredientToDelete(null);
+    if (deleteModal.data !== null) {
+      await deleteMutation.mutateAsync(deleteModal.data);
+      deleteModal.close();
     }
   };
 
@@ -97,7 +84,7 @@ export const IngredientsPage = () => {
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all text-white placeholder:text-zinc-600"
             />
           </div>
-          <Button className="gap-2 whitespace-nowrap shrink-0" onClick={handleOpenCreate}>
+          <Button className="gap-2 whitespace-nowrap shrink-0" onClick={() => modal.open('create')}>
             <Plus className="w-5 h-5" />
             Nuevo
           </Button>
@@ -143,7 +130,7 @@ export const IngredientsPage = () => {
                       variant="ghost" 
                       size="sm" 
                       className="h-9 w-9 p-0"
-                      onClick={() => handleOpenEdit(ing)}
+                      onClick={() => modal.open('edit', ing)}
                     >
                       <Edit2 className="w-4 h-4" />
                     </Button>
@@ -151,7 +138,7 @@ export const IngredientsPage = () => {
                       variant="ghost" 
                       size="sm" 
                       className="h-9 w-9 p-0 text-zinc-500 hover:text-red-500 hover:bg-red-500/10"
-                      onClick={() => handleDelete(ing.id)}
+                      onClick={() => deleteModal.open('create', ing.id)}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -164,20 +151,20 @@ export const IngredientsPage = () => {
       </Table>
 
       <Modal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        title={selectedIngredient ? 'Editar Ingrediente' : 'Agregar Nuevo Ingrediente'}
+        isOpen={modal.isOpen} 
+        onClose={modal.close} 
+        title={modal.data ? 'Editar Ingrediente' : 'Agregar Nuevo Ingrediente'}
       >
         <IngredientForm 
           onSubmit={handleSubmit} 
           isLoading={createMutation.isPending || updateMutation.isPending} 
-          initialData={selectedIngredient || undefined}
+          initialData={modal.data || undefined}
         />
       </Modal>
 
       <ConfirmModal
-        isOpen={ingredientToDelete !== null}
-        onClose={() => setIngredientToDelete(null)}
+        isOpen={deleteModal.isOpen}
+        onClose={deleteModal.close}
         onConfirm={confirmDelete}
         title="Eliminar Ingrediente"
         description="¿Estás seguro de que querés eliminar este ingrediente? Se quitará de todos los productos que lo utilicen. Esta acción no se puede deshacer."

@@ -1,24 +1,36 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productsService } from '../services/productsService';
 import type { ProductCreate, ProductUpdate } from '../types';
+import type { Category } from '@/features/categories/types';
+import type { Ingredient } from '@/features/ingredients/types';
 
 export const useProducts = (filters?: { categoria_id?: number; search?: string; offset?: number; limit?: number }) => {
   return useQuery({
     queryKey: ['products', filters],
-    queryFn: () => productsService.getAll(filters),
+    queryFn: async () => {
+      const data = await productsService.getAll(filters);
+      return {
+        ...data,
+        items: [...data.items].sort((a, b) => a.nombre.localeCompare(b.nombre))
+      };
+    },
   });
 };
 
 export const useProductLinks = (producto_id?: number) => {
   return useQuery({
     queryKey: ['productLinks', producto_id],
-    queryFn: async () => {
+    queryFn: async (): Promise<{ categories: Category[]; ingredients: Ingredient[] }> => {
       if (!producto_id) return { categories: [], ingredients: [] };
       const [categories, ingredients] = await Promise.all([
         productsService.getCategories(producto_id),
-        productsService.getIngredients(producto_id)
+        productsService.getIngredients(producto_id),
       ]);
-      return { categories, ingredients };
+      
+      return { 
+        categories: [...categories].sort((a, b) => a.nombre.localeCompare(b.nombre)), 
+        ingredients: [...ingredients].sort((a, b) => a.nombre.localeCompare(b.nombre)) 
+      };
     },
     enabled: !!producto_id,
   });
@@ -29,12 +41,10 @@ export const useCreateProduct = () => {
 
   return useMutation({
     mutationFn: async (newProduct: ProductCreate) => {
-      // 1. Create the product
       const { categoria_ids, ingrediente_ids, ...productData } = newProduct;
       const createdProduct = await productsService.create(productData);
       
-      // 2. Orchestrate links
-      const linkPromises: Promise<void>[] = [];
+      const linkPromises: Promise<unknown>[] = [];
       
       if (categoria_ids?.length) {
         categoria_ids.forEach(catId => {
@@ -64,10 +74,59 @@ export const useUpdateProduct = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: ProductUpdate }) => 
-      productsService.update(id, data),
-    onSuccess: () => {
+    /**
+     * Orquestación de la actualización del producto y sus vínculos.
+     * Dado que el backend maneja los vínculos (categorías/ingredientes) en endpoints separados,
+     * este hook realiza un "diffing" (comparación) entre los vínculos actuales y los nuevos
+     * para ejecutar los POST (link) o DELETE (unlink) necesarios.
+     */
+    mutationFn: async ({ id, data }: { id: number; data: ProductUpdate }) => {
+      const { categoria_ids, ingrediente_ids, ...productData } = data;
+      
+      // 1. Actualización de los datos base del producto (PATCH)
+      const updatedProduct = await productsService.update(id, productData);
+
+      const syncPromises: Promise<unknown>[] = [];
+
+      // 2. Sincronización de Categorías mediante comparación de IDs
+      if (categoria_ids !== undefined) {
+        const currentCats = await productsService.getCategories(id);
+        const currentIds = currentCats.map(c => c.id);
+        
+        // Identificamos categorías eliminadas -> Unlink
+        currentIds.filter(oldId => !categoria_ids.includes(oldId))
+          .forEach(oldId => syncPromises.push(productsService.unlinkCategory(id, oldId)));
+        
+        // Identificamos categorías nuevas -> Link
+        categoria_ids.filter(newId => !currentIds.includes(newId))
+          .forEach(newId => syncPromises.push(productsService.linkCategory(id, newId)));
+      }
+
+      // 3. Sincronización de Ingredientes mediante comparación de IDs
+      if (ingrediente_ids !== undefined) {
+        const currentIngs = await productsService.getIngredients(id);
+        const currentIds = currentIngs.map(i => i.id);
+
+        // Identificamos ingredientes eliminados -> Unlink
+        currentIds.filter(oldId => !ingrediente_ids.includes(oldId))
+          .forEach(oldId => syncPromises.push(productsService.unlinkIngredient(id, oldId)));
+
+        // Identificamos ingredientes nuevos -> Link
+        ingrediente_ids.filter(newId => !currentIds.includes(newId))
+          .forEach(newId => syncPromises.push(productsService.linkIngredient(id, newId)));
+      }
+
+      // Ejecutamos todas las operaciones de vinculación en paralelo para optimizar performance
+      if (syncPromises.length > 0) {
+        await Promise.all(syncPromises);
+      }
+
+      return updatedProduct;
+    },
+    onSuccess: (_, variables) => {
+      // Invalidamos las queries para forzar un re-fetch de los datos actualizados
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['productLinks', variables.id] });
     },
   });
 };

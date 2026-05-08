@@ -4,6 +4,7 @@ export interface Category {
   id: number;
   nombre: string;
   descripcion: string | null;
+  imagen_url: string | null;
   disponible: boolean;
   parent_id: number | null;
   created_at?: string;
@@ -14,6 +15,7 @@ export interface Category {
 export interface CategoryCreate {
   nombre: string;
   descripcion?: string | null;
+  imagen_url?: string | null;
   parent_id?: number | null;
 }
 
